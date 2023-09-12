@@ -33,7 +33,7 @@ def lambda_handler(event, context):
     date = event['date']
 
     # Retrieve ExpiresIn from Secrets Manager
-    secret_name = "ppd-dev-pricefile-modernization"
+    secret_name = "SECREATE_NAME_****"
     try:
         logger.info("i am in try block")
         secrets = get_secret_value(secret_name)
