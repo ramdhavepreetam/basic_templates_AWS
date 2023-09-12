@@ -1,6 +1,11 @@
 import boto3
 import json
+import logging
+from urllib.parse import unquote_plus
 
+# Set up logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 def get_secret_value(secret_name):
     """
@@ -15,45 +20,44 @@ def get_secret_value(secret_name):
         else:
             raise ValueError("SecretString not found in the secret response")
     except Exception as e:
+        logger.error(f"Unable to retrieve secret: {str(e)}")
         raise RuntimeError(f"Unable to retrieve secret: {str(e)}")
 
-
 def lambda_handler(event, context):
+    logger.info("Lambda execution started")
+
     s3_bucket = event['s3bucket']
-    # Not used in this example, but can be incorporated as needed
     date = event['date']
 
     # Retrieve ExpiresIn from Secrets Manager
     secret_name = "YOUR_SECRET_NAME_HERE"
-    secrets = get_secret_value(secret_name)
-    if 'ExpiresIn' not in secrets:
+    try:
+        secrets = get_secret_value(secret_name)
+        expires_in = int(secrets['ExpiresIn'])
+    except Exception as e:
+        logger.error(f"Failed to fetch ExpiresIn value from Secrets Manager: {str(e)}")
         error_response = {
-            "error": "ExpiresIn not found in secrets."
+            "error": "Error fetching ExpiresIn value from Secrets Manager."
         }
         return json.dumps(error_response)
-    expires_in = int(secrets['ExpiresIn'])
 
-    # Create an S3 client
     s3 = boto3.client('s3')
-
     urls = []
 
     try:
-        # List all objects in the specified bucket
         objects = s3.list_objects_v2(Bucket=s3_bucket)
-
-        # Check if there are objects in the bucket
         if 'Contents' not in objects:
             error_response = {
                 "error": "No files found in the provided location."
             }
+            logger.warning("No files found in the provided S3 location")
             return json.dumps(error_response)
 
         for obj in objects['Contents']:
-            # Generate a pre-signed URL for each object
+            key = unquote_plus(obj['Key'], encoding='utf-8')
             url = s3.generate_presigned_url(
                 ClientMethod='get_object',
-                Params={'Bucket': s3_bucket, 'Key': obj['Key']},
+                Params={'Bucket': s3_bucket, 'Key': key},
                 ExpiresIn=expires_in
             )
             urls.append({"Fileurl": url})
@@ -64,13 +68,17 @@ def lambda_handler(event, context):
         return json.dumps(response)
 
     except s3.exceptions.NoSuchBucket:
+        error_message = "The specified bucket does not exist."
+        logger.error(error_message)
         error_response = {
-            "error": "The specified bucket does not exist."
+            "error": error_message
         }
         return json.dumps(error_response)
 
     except Exception as e:
+        error_message = f"An error occurred: {str(e)}"
+        logger.error(error_message)
         error_response = {
-            "error": f"An error occurred: {str(e)}"
+            "error": error_message
         }
         return json.dumps(error_response)
