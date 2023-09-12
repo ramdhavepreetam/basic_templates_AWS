@@ -25,15 +25,21 @@ def get_secret_value(secret_name):
 
 def lambda_handler(event, context):
     logger.info("Lambda execution started")
-
-    s3_bucket = event['s3bucket']
+    logger.info(f"Received event: {json.dumps(event)}")
+    
+    #s3_bucket = event['s3bucket']
+    s3_bucket = event.get('s3bucket',None)
+ 
     date = event['date']
 
     # Retrieve ExpiresIn from Secrets Manager
-    secret_name = "YOUR_SECRET_NAME_HERE"
+    secret_name = "ppd-dev-pricefile-modernization"
     try:
+        logger.info("i am in try block")
         secrets = get_secret_value(secret_name)
+
         expires_in = int(secrets['ExpiresIn'])
+        logger.error(f"Got Expires in the secreates : {str(expires_in)}")
     except Exception as e:
         logger.error(f"Failed to fetch ExpiresIn value from Secrets Manager: {str(e)}")
         error_response = {
@@ -45,7 +51,10 @@ def lambda_handler(event, context):
     urls = []
 
     try:
-        objects = s3.list_objects_v2(Bucket=s3_bucket)
+        logger.info("i am in try of the gets3 bucket objects")
+        objects = s3.list_objects_v2(Bucket=s3_bucket,)
+        
+        logger.info(f"Received Objects are : {json.dumps(objects)}")        
         if 'Contents' not in objects:
             error_response = {
                 "error": "No files found in the provided location."
