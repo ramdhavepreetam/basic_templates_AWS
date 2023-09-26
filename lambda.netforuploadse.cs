@@ -1,49 +1,113 @@
+Here is one way to convert the Python code to C# for .NET Core:
+
+```csharp
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
-using Amazon.Lambda.Core;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using Amazon.S3;
+using Amazon.S3.Model;
 using Npgsql;
-using Newtonsoft.Json.Linq;
 
-[assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.SystemTextJson.DefaultLambdaJsonSerializer))]
-
-namespace YourLambdaFunctionName
+public class Function 
 {
-    public class Function
+  private static IAmazonSecretsManager secretsClient;
+  private static IAmazonS3 s3Client;
+  
+  public async Task<string> FunctionHandler(SNSEvent evnt, ILambdaContext context)
+  {
+    try 
     {
-        private const string SecretId = "ppd-dev-pricefile-modernization";
+      var secrets = await GetSecrets("secretID");
+      
+      var dbParams = new NpgsqlConnectionStringBuilder{
+        Host = secrets["host"],
+        Port = int.Parse(secrets["port"]),
+        Username = secrets["user"],
+        Password = secrets["password"],
+        Database = secrets["dbname"]
+      };
+
+      using(var conn = new NpgsqlConnection(dbParams.ConnectionString)) {
+        conn.Open();
+      
+        var initialData = await FetchData(conn, "SELECT DISTINCT dealer_code FROM dealer_master");
         
-        public async Task FunctionHandler(ILambdaContext context)
-        {
-            var secrets = await GetSecrets();
-            
-            using var conn = new NpgsqlConnection(GetConnectionString(secrets));
-            conn.Open();
-            
-            using var cmd = new NpgsqlCommand("SELECT distinct \"DEALER_CODE\" FROM ppdglobal.\"DEALER_MASTER\"", conn);
-            var reader = cmd.ExecuteReader();
-
-            // TODO: Process your data and send it to S3, similar to the Python code. 
-            // This is just a high-level example, you might need to adapt for exact requirements.
-
-            conn.Close();
+        foreach(var row in initialData) {
+          var dealerCode = row[0];
+          
+          var query = $"SELECT * FROM dcpp0113c dd WHERE dd.itmid IN (SELECT dc.itmid FROM dcpp0115 dc WHERE dc.cstno = '{dealerCode}')";
+          
+          var data = await FetchData(conn, query);
+          
+          await CreateS3File(data, dealerCode, secrets["bucketName"]);
         }
+      }
 
-        private async Task<JObject> GetSecrets()
-        {
-            using var client = new AmazonSecretsManagerClient();
-            var response = await client.GetSecretValueAsync(new GetSecretValueRequest { SecretId = SecretId });
-            return JObject.Parse(response.SecretString);
-        }
-
-        private string GetConnectionString(JObject secrets)
-        {
-            return $"Host={secrets["host"]};Username={secrets["user"]};Password={secrets["password"]};Database={secrets["dbname"]};Port={secrets["port"]}";
-        }
+      return "Done!";
+      
+    } catch(Exception ex) {
+      return ex.Message; 
     }
+  }
+
+  private async Task<Dictionary<string, string>> GetSecrets(string secretId)
+  {
+    var response = await secretsClient.GetSecretValueAsync(new GetSecretValueRequest 
+    {
+      SecretId = secretId
+    });
+
+    return JsonConvert.DeserializeObject<Dictionary<string, string>>(response.SecretString);
+  }
+
+  private async Task<List<string[]>> FetchData(NpgsqlConnection conn, string query)
+  {
+    using(var cmd = new NpgsqlCommand(query, conn))
+    using(var reader = await cmd.ExecuteReaderAsync()) {
+      var results = new List<string[]>();
+      while(await reader.ReadAsync()) {
+        var values = new string[reader.FieldCount];
+        reader.GetValues(values);
+        results.Add(values);
+      }
+      return results;
+    }
+  }
+
+  private async Task CreateS3File(List<string[]> data, string dealerId, string bucketName)
+  {
+    var folderName = $"{dealerId}_{DateTime.UtcNow:yyyy_MM_dd}";
+    var key = $"{folderName}/data.csv";
+
+    using(var writer = new StringWriter()) 
+    using(var csv = new CsvWriter(writer)) {
+      csv.WriteRecords(data);
+      var contents = writer.ToString();
+      
+      var request = new PutObjectRequest {
+        BucketName = bucketName,
+        Key = key,
+        ContentType = "text/csv",
+        ContentBody = contents
+      };
+      
+      await s3Client.PutObjectAsync(request); 
+    }
+  }
+
 }
+```
+
+The key differences:
+
+- Use C# async/await for async operations instead of Python's async framework
+- Convert Python libraries to .NET equivalents (Npgsql instead of psycopg2, AWSSDK instead of boto3, System.IO instead of io, etc.)
+- Dictionary instead of Python dict for secrets 
+- String interpolation with $ for queries instead of f-strings
+- Use C# CSV helper instead of Python CSV module
+- Handle exceptions differently since no try/except blocks in C# async methods
+
+Let me know if any part needs more explanation!
