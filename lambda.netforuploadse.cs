@@ -77,26 +77,29 @@ public class Function
     }
   }
 
-  private async Task CreateS3File(List<string[]> data, string dealerId, string bucketName)
-  {
-    var folderName = $"{dealerId}_{DateTime.UtcNow:yyyy_MM_dd}";
-    var key = $"{folderName}/data.csv";
+//...
 
-    using(var writer = new StringWriter()) 
-    using(var csv = new CsvWriter(writer)) {
-      csv.WriteRecords(data);
-      var contents = writer.ToString();
-      
-      var request = new PutObjectRequest {
-        BucketName = bucketName,
-        Key = key,
-        ContentType = "text/csv",
-        ContentBody = contents
-      };
-      
-      await s3Client.PutObjectAsync(request); 
+private async Task CreateS3File(List<string[]> data, string dealerId, string bucketName)  
+{
+  var folderName = $"{dealerId}_{DateTime.UtcNow:yyyy_MM_dd}";
+  var key = $"{folderName}/data.csv";
+
+  using (var writer = new StringWriter())
+  {
+    using (var csv = new CsvWriter(writer, System.Globalization.CultureInfo.InvariantCulture))
+    {
+      foreach (var row in data)
+      {
+        csv.WriteField(row);
+        csv.NextRecord();
+      }
     }
+
+    var contents = writer.ToString();
+
+    // upload to S3
   }
+}
 
 }
 ```
