@@ -20,4 +20,8 @@ def lambda_handler(event, context):
         'body': json.dumps({"message": "Hello World"})
     }
 
+    All the above errors are fixed 
+    please download the new code. 
+    
+
 
