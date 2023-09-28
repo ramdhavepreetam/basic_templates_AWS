@@ -1,10 +1,9 @@
-Absolutely! Below is the Lambda code structured professionally, using helper functions, and integrating with PostgreSQL and SQS based on your requirements:
-
-```python
 import psycopg2
 import boto3
 import json
 import logging
+from io import StringIO
+import csv
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,26 +25,30 @@ def connect_to_db(db_params):
         logging.error(f"Error connecting to the database: {e}")
         raise
 
-def fetch_data_from_db(cur, query):
+def fetch_data_from_db(cur, dealer_id):
+    query = f"""SELECT * FROM PPDGLOBAL."DCPP0113C" DD WHERE DD."ITMID" IN (
+                   SELECT DC."ITMID" FROM PPDGLOBAL."DCPP0115" DC WHERE DC."CSTNO" = '{dealer_id}'
+               )"""
     try:
         cur.execute(query)
         return cur.fetchall()
     except Exception as e:
-        logging.error(f"Error executing query: {e}")
+        logging.error(f"Error executing query for dealer ID {dealer_id}: {e}")
         raise
 
-def send_to_sqs(dealer_code, sqs_queue_url):
-    try:
-        sqs_client = boto3.client('sqs')
-        message_body = {"dealer_code": dealer_code}
-        response = sqs_client.send_message(
-            QueueUrl=sqs_queue_url,
-            MessageBody=json.dumps(message_body)
-        )
-        logging.info(f"Successfully sent dealer code {dealer_code} to SQS with message ID {response['MessageId']}")
-    except Exception as e:
-        logging.error(f"Error sending dealer code {dealer_code} to SQS: {e}")
-        raise
+def save_to_s3(all_data, dealerID, bucket_name):
+    output = StringIO()
+    csv_writer = csv.writer(output)
+    csv_writer.writerows(all_data)
+    
+    current_date = datetime.now()
+    folder_structure = f"{dealerID}/{current_date.strftime('%Y/%m/%d')}"
+    s3_key = f"{folder_structure}/ITEM.csv"
+    
+    output.seek(0)
+    resource = boto3.resource('s3')
+    resource.Object(bucket_name, s3_key).put(Body=output.getvalue())
+    logging.info(f"Successfully uploaded data for dealer ID {dealerID} to {s3_key}")
 
 def lambda_handler(event, context):
     try:
@@ -62,20 +65,20 @@ def lambda_handler(event, context):
         conn = connect_to_db(DB_PARAMS)
         cur = conn.cursor()
         
-        initial_data = fetch_data_from_db(cur, "SELECT distinct \"DEALER_CODE\" FROM ppdglobal.\"DEALER_MASTER\"")
-        
-        sqs_queue_url = secrets['sqs_queue_url']  # Make sure this key exists in your secret
-        
-        for item in initial_data:
-            dealer_code = item[0]
-            send_to_sqs(dealer_code, sqs_queue_url)
-        
+        # Get dealer_id from the SQS message
+        for record in event['Records']:
+            payload = json.loads(record['body'])
+            dealer_id = payload['dealer_code']
+
+            data = fetch_data_from_db(cur, dealer_id)
+            save_to_s3(data, dealer_id, secrets['BucketName'])
+
         cur.close()
         conn.close()
         
         return {
             'statusCode': 200,
-            'body': json.dumps('Data successfully processed and sent to SQS!')
+            'body': json.dumps('Data successfully processed and uploaded to S3!')
         }
 
     except Exception as e:
@@ -84,12 +87,3 @@ def lambda_handler(event, context):
             'statusCode': 500,
             'body': json.dumps('An error occurred. Check logs for details.')
         }
-```
-
-Make sure you have:
-
-1. Created an SQS queue and have its URL.
-2. Stored the necessary database credentials and the SQS queue URL in AWS Secrets Manager.
-3. Granted the Lambda function's IAM role permission to access the secret, connect to the PostgreSQL database (if necessary), and send messages to the SQS queue.
-
-This code will pull distinct dealer codes from your PostgreSQL database and send each one as a separate message to the specified SQS queue.
