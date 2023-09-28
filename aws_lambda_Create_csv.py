@@ -39,9 +39,11 @@ def create_s3_folder(all_data, dealerID, bucket_name):
         output = StringIO()
         csv_writer = csv.writer(output)
         csv_writer.writerows(all_data)
-        
-        folder_name = "{}_{}".format(dealerID, datetime.now().strftime('%Y_%m_%d'))
-        s3_key = f"{folder_name}/ITEM.csv"
+
+        # Construct the folder structure: dealerID/year/month/day/ITEM.csv
+        current_date = datetime.now()
+        folder_structure = f"{dealerID}/{current_date.strftime('%Y/%m/%d')}"
+        s3_key = f"{folder_structure}/ITEM.csv"
         
         output.seek(0)
         
@@ -50,7 +52,7 @@ def create_s3_folder(all_data, dealerID, bucket_name):
         logging.info(f"Successfully uploaded to {s3_key}")
     except Exception as e:
         logging.error(f"Error creating S3 folder: {e}")
-        raise
+        raise 
 
 def lambda_handler(event, context):
     try:
