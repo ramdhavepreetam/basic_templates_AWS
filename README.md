@@ -21,3 +21,9 @@ def lambda_handler(event, context):
     }
 
 
+
+
+	SELECT * FROM PPDGLOBAL."DCPP0113C" DD , 
+				  PPDGLOBAL."DCPP0115" DC ,
+				  ppdglobal."DEALER_MASTER" DM
+	WHERE DD."ITMID" = DC."ITMID"  and  DC."CSTNO" = DM."DEALER_CODE" AND DM."DBS" = 'DSI'
