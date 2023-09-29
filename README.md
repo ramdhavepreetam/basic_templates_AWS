@@ -23,7 +23,17 @@ def lambda_handler(event, context):
 
 
 
-	SELECT * FROM PPDGLOBAL."DCPP0113C" DD , 
-				  PPDGLOBAL."DCPP0115" DC ,
-				  ppdglobal."DEALER_MASTER" DM
-	WHERE DD."ITMID" = DC."ITMID"  and  DC."CSTNO" = DM."DEALER_CODE" AND DM."DBS" = 'DSI'
+SELECT 
+    -- List the specific columns you need instead of *
+    DD.someColumn,
+    DC.anotherColumn,
+    DM.yetAnotherColumn
+FROM 
+    PPDGLOBAL."DCPP0113C" DD 
+JOIN 
+    PPDGLOBAL."DCPP0115" DC ON DD."ITMID" = DC."ITMID"
+JOIN 
+    PPDGLOBAL."DEALER_MASTER" DM ON DC."CSTNO" = DM."DEALER_CODE"
+WHERE 
+    DM."DBS" = 'DSI';
+
