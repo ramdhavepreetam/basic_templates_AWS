@@ -51,7 +51,7 @@ WHERE
         "ApproximateFirstReceiveTimestamp": "1523232000001"
       },
       "messageAttributes": {},
-      "md5OfBody": "e4e68fb7bd0e697a0ae8f1bb342846b3",
+      "md5OfBody": "b27103d895d6dc0f1539fd0d87bfb84b",
       "eventSource": "aws:sqs",
       "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:MyQueue",
       "awsRegion": "us-east-1"
