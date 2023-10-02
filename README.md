@@ -57,3 +57,63 @@ Some things to check that could be causing this:
 - Memory region issues - mismatch between how the program and linker map memory regions could cause invalid accesses. Ensure memory regions match.
 
 Overall this indicates some invalid memory access. Carefully audit memory usage throughout the program - allocations, array accesses, pointer arithmetic, etc. A memory debugging tool can help pinpoint the line causing the invalid access.
+
+
+Based on the additional context, here are some specific things I would look at to debug the invalid memory access error:
+
+- Check the data queue access - the QRCVDTAQ and QSNDDTAQ functions are used to receive/send from the data queues. Make sure the queue names, keys, and buffer sizes are configured correctly.
+
+- Validate ebcdic/ascii conversion - the TO_ASCII and TO_EBCDIC macros convert between ascii and ebcdic. Make sure the source buffers are large enough to hold the converted output.
+
+- Analyze buffer sizes - many fixed size stack buffers are used, like bufferOut, BufferIn, BufferRet. Check that input data does not exceed these sizes.
+
+- Review socket communication - the recv and send calls are used to communicate with the socket. Make sure the receive buffer is large enough and not overflowed.
+
+- Use memory debugging tools - as mentioned previously, tools like valgrind and AddressSanitizer can help identify the line of code causing the invalid access.
+
+- Add bounds checking - use asserts or other checks to validate array/buffer accesses are within bounds. This can quickly identify any issues.
+
+- Simplify the problem - try to reduce the program to a small repro case that has the same error. This simplifies debugging.
+
+Focus the investigation on the memory usage at the interfaces between components - the data queues, ebcdic/ascii conversion, socket communication, etc. The issue likely lies in one of those areas mishandling memory. Auditing and adding checks to the memory usage can help uncover any bugs.
+
+Based on the additional context, here are some specific things I would look at to debug the invalid memory access error:
+
+- Check the data queue access - the QRCVDTAQ and QSNDDTAQ functions are used to receive/send from the data queues. Make sure the queue names, keys, and buffer sizes are configured correctly.
+
+- Validate ebcdic/ascii conversion - the TO_ASCII and TO_EBCDIC macros convert between ascii and ebcdic. Make sure the source buffers are large enough to hold the converted output.
+
+- Analyze buffer sizes - many fixed size stack buffers are used, like bufferOut, BufferIn, BufferRet. Check that input data does not exceed these sizes.
+
+- Review socket communication - the recv and send calls are used to communicate with the socket. Make sure the receive buffer is large enough and not overflowed.
+
+- Use memory debugging tools - as mentioned previously, tools like valgrind and AddressSanitizer can help identify the line of code causing the invalid access.
+
+- Add bounds checking - use asserts or other checks to validate array/buffer accesses are within bounds. This can quickly identify any issues.
+
+- Simplify the problem - try to reduce the program to a small repro case that has the same error. This simplifies debugging.
+
+Focus the investigation on the memory usage at the interfaces between components - the data queues, ebcdic/ascii conversion, socket communication, etc. The issue likely lies in one of those areas mishandling memory. Auditing and adding checks to the memory usage can help uncover any bugs.
+
+
+Based on your suspicion that the ascii to ebcdic conversion of the reply message may be causing the issue, here are some things I would focus on:
+
+- Carefully review the GetMessage() function that does the reply message conversion - look for any bugs in the logic or buffer handling.
+
+- Print out the reply message length before and after conversion to validate the input/output sizes match expectations.
+
+- Use a debugger or add additional logging to trace the execution and buffer sizes through the conversion step.
+
+- Try simplifying by removing the ascii to ebcdic conversion entirely and just passing the ascii data through. Does the memory issue still happen?
+
+- Make sure the reply buffer passed to GetMessage() is initialized and large enough to hold the converted output.
+
+- Double check the logic in the TO_EBCDIC macro itself and verify it can handle the input length.
+
+- Look for any cases where the input reply message could contain unexpected or invalid data that could trigger a bug.
+
+- Try restructuring the logic to first convert into a temporary buffer, validate the size, then copy to the final output buffer.
+
+- Consider switching from macros to functions to better encapsulate the conversion logic.
+
+Isolating the reply message handling and conversion logic will help determine if that is the root cause. You can also use memory debugging tools to validate if any invalid accesses happen during the TO_EBCDIC call itself. A simplified test case focused just on the reply message handling may make the issue more apparent.
