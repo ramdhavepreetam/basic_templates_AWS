@@ -99,296 +99,105 @@ def lambda_handler(event, context):
 
 
 
-import pymysql  
-import sys  
-import json  
-import config  
-import boto3  
-  
-  
-def get_values(ORDNO, CSTNO, CSTSFX, ITMID): 
-     #Db connections for rds  
-    REGION=config.data["REGION"]  
-    rds_host=config.data["rds_host"]  
-    username=config.data["username"]  
-    password=config.data["password"]  
-    db_name=config.data["db_name"]  
-    conn = pymysql.connect(rds_host, username, password, db_name, connect_timeout=5)  
-     
-    final = {}   
-    final.setdefault('result', [])   
-    with conn.cursor() as curr:   
-        query ="SELECT distinct DOPORDM0.ORDNO,DOPORDM0.CSTNO,DOPORDM0.CSTSFX,DOPORDM3.ITMID,DCSCIM.ITMDESC,DOPORDM3.ORDLN,DOPORDM3.CUSTLN,DOPORDM4.RELNO,DOPORDM4.SEQ,DOPORDM3.CSTSKU, DOPORDM3.STAT,DWMPQSH.FRTCRY as PDC_Carrier, DOPORDM0.CSTORD,date_format(DPMORDM0.ISSDTE,'%%m/%%d/%%Y') as ISSDTE,date_format(DPMORDM3.PROMDTE,'%%m/%%d/%%Y')as PROMDTE,DPMORDM3.POLNNBR,DOPORDM3.QTYBO,DOPORDM3.QTYFUTR,DOPORDM3.QTYALC,DOPORDM3.QTYPICKED,DOPORDM3.QTYSHP,DOPORDM3.QTYINV,DOPORDM3.UOM,DOPORDM3.QTYCNL,Case When substr(DOPORDM0.DISTCTR,1,1)='X' Then 'Y' When substr(DOPORDM0.DISTCTR,1,1)<>'X' and DOPORDM0.ORDTYP='TD' then 'Y' When substr(DCSCTMR.RECD,90,1) = 'Y' then 'Y' ELSE 'N' End AS DSP_ORDER,date_format(DOPORDM4.DTESHP,'%%m/%%d/%%Y')as DTESHP,DPMREQ.PONBR,CASE WHEN DOPORDM3.VNDID = ' ' THEN DCSCIM.VNDID ELSE DOPORDM3.VNDID END AS VNDID,CASE WHEN DOPORDM3.VNDID = ' ' THEN DCSCIM.VNDSFX ELSE DOPORDM3.VNDSFX END AS VNDSFX,DOPORDM4.INVOICE,DOPORDM3.QTYORD,DWMPQSH.PRONO as PDCTracking,Coalesce((Select count(Distinct(cmt)) from DOPORDM2 where DOPORDM2.ORDNO=DOPORDM0.ORDNO and DOPORDM2.CSTNO=DOPORDM0.CSTNO and DOPORDM2.ORDLN=DOPORDM3.ORDLN and DOPORDM2.CSTSFX=DOPORDM0.CSTSFX and DOPORDM2.RCDTYP='I'),0) as CMTCTR,Coalesce((Select count(Distinct(DPMORDM2A.Desc)) from DPMORDM2A where DPMORDM2A.PONBR=DPMREQ.PONBR and DPMORDM2A.POLNNBR=DPMREQ.POLNNBR),0) as PONoteCtr FROM (DOPORDM0 join DOPORDM3 on DOPORDM0.ORDNO=DOPORDM3.ORDNO and DOPORDM0.CSTNO=DOPORDM3.CSTNO and DOPORDM0.CSTSFX=DOPORDM3.CSTSFX) left join DOPORDM4 on DOPORDM4.ORDNO=DOPORDM3.ORDNO and DOPORDM4.ORDLN=DOPORDM3.ORDLN and DOPORDM4.CSTNO=DOPORDM3.CSTNO and  DOPORDM4.CSTSFX=DOPORDM3.CSTSFX left join DWMPQSH on DOPORDM4.DISTCTR=DWMPQSH.DISTCTR and DOPORDM4.CSTNO=DWMPQSH.CSTNO and DOPORDM4.CSTSFX=DWMPQSH.CSTSFX and DOPORDM4.BOXNO=DWMPQSH.BOXNO left join DPMREQ on DPMREQ.REQNBR=DOPORDM3.REQNBR and DPMREQ.ORGSYS='COPS' and DPMREQ.ORGNBR=DOPORDM0.ORDNO left join DCSCIM on DOPORDM3.ITMID=DCSCIM.ITMID left join DPMORDM0 on DPMREQ.PONBR=DPMORDM0.PONBR left join DPMORDM3 on DPMORDM0.PONBR=DPMORDM3.PONBR and DPMREQ.POLNNBR=DPMORDM3.POLNNBR and DOPORDM3.ITMID=DPMORDM3.ITMID left join DCSCTMR on DCSCTMR.TBLID=617 and DCSCTMR.SUFFIX=substr(DOPORDM3.ORDNO,1,2) Where DOPORDM0.ORDNO=%s and DOPORDM0.CSTNO=%s and  DOPORDM0.CSTSFX=%s and DOPORDM3.ITMID= %s"
-        curr.execute(query,(ORDNO,CSTNO,CSTSFX,ITMID))    
-        result =curr.fetchall() 
-        for row in range(len(result)):   
-            if result[row][0]==None:   
-                ORDNO =''   
-            else:   
-                ORDNO = str(result[row][0])   
-                   
-            if result[row][1]==None:   
-                CSTNO =''   
-            else:   
-                CSTNO = str(result[row][1])   
-               
-            if result[row][2]==None:   
-                CSTSFX =''   
-            else:   
-                CSTSFX = str(result[row][2])   
-               
-            if result[row][3]==None:   
-                ITMID =''   
-            else:   
-                ITMID = str(result[row][3])   
-               
-            if result[row][4]==None:   
-                ITMDESC =''   
-            else:   
-                ITMDESC = str(result[row][4])   
-            if result[row][5]==None or '':   
-                ORDLN = 0   
-            else:   
-                ORDLN = int(result[row][5])   
-            if result[row][6]==None or '':   
-                CUSTLN = 0   
-            else:   
-                CUSTLN = int(result[row][6])   
-            if result[row][7]==None or '':   
-                RELNO = 0   
-            else:   
-                RELNO = int(result[row][7])   
-            if result[row][8]==None or '':   
-                SEQ = 0   
-            else:   
-                SEQ = int(result[row][8])   
-            if result[row][9]==None:   
-                CSTSKU =''   
-            else:   
-                CSTSKU = str(result[row][9])   
-            if result[row][10]==None:   
-                STAT =''   
-            else:   
-                STAT = str(result[row][10])   
-            if result[row][11]==None:   
-                PDC_Carrier=''   
-            else:   
-                PDC_Carrier = str(result[row][11])   
-            if result[row][12]==None:   
-                CSTORD=''   
-            else:   
-                CSTORD = str(result[row][12])   
-            if result[row][13]==None or result[row][13]=='00/00/0000':   
-                ISSDTE =''   
-            else:   
-                ISSDTE = str(result[row][13])   
-            if result[row][14]==None or result[row][14]=='00/00/0000':   
-                PROMDTE =''   
-            else:   
-                PROMDTE = str(result[row][14])   
-            if result[row][15]==None:   
-                POLNNBR =''   
-            else:   
-                POLNNBR = str(result[row][15])   
-            if result[row][16]==None or '':   
-                QTYBO = 0   
-            else:   
-                QTYBO=int(result[row][16])   
-            if result[row][17]==None or '':   
-                QTYFUTR = 0   
-            else:   
-                QTYFUTR = int(result[row][17])   
-            if result[row][18]==None or '':   
-                QTYALC = 0   
-            else:   
-                QTYALC = int(result[row][18])   
-            if result[row][19]==None or '':   
-                QTYPICKED = 0   
-            else:   
-                QTYPICKED = int(result[row][19])   
-            if result[row][20]==None or '':   
-                QTYSHP = 0   
-            else:   
-                QTYSHP = int(result[row][20])   
-            if result[row][21]==None or '':   
-                QTYINV = 0   
-            else:   
-                QTYINV = int(result[row][21])   
-            if result[row][22]==None:   
-                UOM = 0   
-            else:   
-                UOM = result[row][22]   
-            if result[row][23]==None or '':   
-                QTYCNL = 0   
-            else:   
-                QTYCNL = int(result[row][23])  
-            if result[row][24]==None:   
-                DSP_ORDER = ''  
-            else:   
-                DSP_ORDER = str(result[row][24])  
-            if result[row][25]==None or '' or result[row][25]=='00/00/0000':   
-                DTESHP =''   
-            else:   
-                DTESHP = result[row][25]   
-            if result[row][26]==None:   
-                PONBR =''   
-            else:   
-                PONBR = str(result[row][26])   
-            if result[row][27]==None:   
-                VNDID =''   
-            else:   
-                VNDID = str(result[row][27])   
-            if result[row][28]==None:   
-                VNDSFX =''   
-            else:   
-                VNDSFX = str(result[row][28])   
-            if result[row][29]==None or '':   
-                INVOICE = 0   
-            else:   
-                INVOICE = int(result[row][29])   
-            if result[row][30]==None or '':   
-                QTYORD = 0   
-            else:   
-                QTYORD= int(result[row][30])   
-            if result[row][31]==None:   
-                PDCTracking =''   
-            else:   
-                PDCTracking = str(result[row][31])   
-            if result[row][32]==None or '':   
-                CMTCTR = 0   
-            else:   
-                CMTCTR =int(result[row][32])   
-            if result[row][33]==None or'':   
-                PONoteCtr = 0   
-            else:   
-                PONoteCtr =int(result[row][33])   
-   
-            y = {   
-                'ORDNO': ORDNO,   
-                'CSTNO': CSTNO,   
-                'CSTSFX': CSTSFX,   
-                'ITMID': ITMID,   
-                'ITMDESC': ITMDESC,   
-                'ORDLN': ORDLN,   
-                'CUSTLN': CUSTLN,   
-                'RELNO': RELNO,   
-                'SEQ': SEQ,   
-                'CSTSKU': CSTSKU,   
-                'STAT': STAT,   
-                'PDC_Carrier':PDC_Carrier,   
-                'CSTORD': CSTORD,   
-                'ISSDTE': ISSDTE,   
-                'PROMDTE': PROMDTE,   
-                'POLNNBR': POLNNBR,   
-                'QTYBO':QTYBO,   
-                'QTYFUTR':QTYFUTR,   
-                'QTYALC':QTYALC,   
-                'QTYPICKED':QTYPICKED,   
-                'QTYSHP':QTYSHP,   
-                'QTYINV':QTYINV,   
-                'UOM': UOM,   
-                'QTYCNL': QTYCNL,  
-                'DSP_ORDER':DSP_ORDER,  
-                'DTESHP': DTESHP,   
-                'PONBR' : PONBR,   
-                'VNDID':VNDID,   
-                'VNDSFX':VNDSFX,   
-                'INVOICE':INVOICE,   
-                'QTYORD':QTYORD,   
-                'PDCTracking':PDCTracking,   
-                'CMTCTR': CMTCTR,   
-                'PONoteCtr': PONoteCtr,   
-            }   
-            final['result'].append(y)     
-        curr.close()     
-    conn.close()    
-    return final['result']   
-       
-      
-def lambda_handler(event, context):   
-    ORDNO = event['queryStringParameters']['ORDNO']   
-    CSTNO = event['queryStringParameters']['CSTNO']   
-    CSTSFX = event['queryStringParameters']['CSTSFX']   
-    ITMID = event['queryStringParameters']['ITMID']   
-    result=get_values(ORDNO, CSTNO, CSTSFX, ITMID)   
-       
-       
-   
-    if result == 'ERROR':   
-        return {   
-            "statusCode": 500,   
-            "body": "Server Error",   
-       
-        }   
-    else:   
-        return {   
-            "statusCode": 200,   
-            "body": json.dumps(result),   
-        }   
-  
-{   
-    "ORDNO": "XSRN919",
-    "CSTNO":"B400",
-    "CSTSFX":" ",
-    "ITMID": "21-10F0"
-}
 
 
+Certainly! Here's the complete Lambda function with the modifications:
 
-http://ppdtest:10010/web/services/RetrieveOrderInfo
+```python
+import json
+import requests
+import boto3
 
+def get_secret():
+    secret_name = "YOUR_SECRET_NAME"
+    region_name = "YOUR_AWS_REGION"
+    
+    session = boto3.session.Session()
+    client = session.client(service_name='secretsmanager', region_name=region_name)
 
-{
-    "OutData": {
-        "OutDataS": [
-            {
-                "ORDNO": "XSRN919",
-                "CSTNO": "B400",
-                "CSTSFX": "",
-                "ITMID": "21-10F0",
-                "ITMDESC": "SYSTEM-SPACEMASTER 10 PNL 81-8 ADD EXPL",
-                "SALEIND": "Y",
-                "ORDLN": 1,
-                "CUSTLN": 1,
-                "RELNO": 1,
-                "SEQ": 0,
-                "CSTSKU": "",
-                "STAT": "6",
-                "PDC_CARRIER": "",
-                "CSTORD": "TEST PO A 10286AA",
-                "ISSDTE": "01/16/23",
-                "PROMDTE": "01/18/23",
-                "POLNNBR": 1,
-                "QTYBO": 0.0000,
-                "QTYFUTR": 0.0000,
-                "QTYALC": 0.0000,
-                "QTYPICKED": 0.0000,
-                "QTYSHP": 15.0000,
-                "QTYINV": 0.0000,
-                "UOM": "EA",
-                "QTYCNL": 0.0000,
-                "DSP_ORDER": "Y",
-                "DTESHP": "02/27/23",
-                "PONBR": "XS-XU72838",
-                "VNDID": "10286AA",
-                "VNDSFX": "",
-                "INVOICE": 0,
-                "QTYORD": 15.0000,
-                "PDCTRACKING": "",
-                "CMTCTR": 2,
-                "PONOTECTR": 3,
-                "ENDCSTNAM": ""
-            }
-        ]
-    },
-    "ErrorResponse": {
-        "IsSuccess": "true",
-        "ErrorMessages": []
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    except Exception as e:
+        raise e  # Handle this according to your logging or error handling preference
+
+    if 'SecretString' in get_secret_value_response:
+        secret = json.loads(get_secret_value_response['SecretString'])
+        return secret
+    else:
+        raise Exception("Failed to retrieve secret values.")
+
+def get_values_from_api(ORDNO, CSTNO, CSTSFX, ITMID):
+    # API endpoint
+    url = "http://ppdtest:10010/web/services/RetrieveOrderInfo"
+    
+    # Retrieve username and password from Secrets Manager
+    secrets = get_secret()
+    username = secrets['username']
+    password = secrets['password']
+    
+    # Encode to base64 for basic authentication
+    auth_token = f"{username}:{password}"
+    
+    headers = {
+        "Authorization": f"Basic {auth_token.encode().decode('base64')}"
     }
-}
+    
+    # API payload
+    payload = {
+        "ORDNO": ORDNO,
+        "CSTNO": CSTNO,
+        "CSTSFX": CSTSFX,
+        "ITMID": ITMID
+    }
+    
+    # Making the API request
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()  # Raise an HTTPError for bad responses
 
+        # Extract data from API response
+        response_data = response.json()
+        if response_data.get("ErrorResponse") and response_data["ErrorResponse"].get("IsSuccess") == "true":
+            return response_data.get("OutData", {}).get("OutDataS", [])
+        else:
+            return "ERROR"
+    except requests.exceptions.RequestException as e:
+        raise e  # Handle this according to your logging or error handling preference
 
+def lambda_handler(event, context):
+    try:
+        body = json.loads(event['body'])  # Parsing the body to extract parameters
+        ORDNO = body['ORDNO']
+        CSTNO = body['CSTNO']
+        CSTSFX = body['CSTSFX']
+        ITMID = body['ITMID']
 
+        result = get_values_from_api(ORDNO, CSTNO, CSTSFX, ITMID)
+        
+        if result == 'ERROR':
+            return {
+                "statusCode": 500,
+                "body": "Server Error"
+            }
+        else:
+            return {
+                "statusCode": 200,
+                "body": json.dumps(result)
+            }
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": f"Server Error: {str(e)}"
+        }
+```
+
+In this code:
+
+1. The `get_secret()` function retrieves credentials from the AWS Secrets Manager.
+2. The `get_values_from_api()` function calls the specified API with basic authentication using the credentials retrieved.
+3. The `lambda_handler()` function is the entry point for the Lambda execution. It extracts the parameters (`ORDNO`, `CSTNO`, `CSTSFX`, `ITMID`) from the body of the request and then calls the `get_values_from_api()` function.
+
+Make sure to replace the placeholders `YOUR_SECRET_NAME` and `YOUR_AWS_REGION` with appropriate values for your setup. Ensure that the Lambda has the necessary IAM permissions and that the `boto3` and `requests` libraries are included in the deployment package.
 
 
 
