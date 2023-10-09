@@ -199,6 +199,8 @@ In this code:
 
 Make sure to replace the placeholders `YOUR_SECRET_NAME` and `YOUR_AWS_REGION` with appropriate values for your setup. Ensure that the Lambda has the necessary IAM permissions and that the `boto3` and `requests` libraries are included in the deployment package.
 
+
+
 import http.client
 import json
 import boto3
