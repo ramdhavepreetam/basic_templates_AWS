@@ -99,10 +99,294 @@ def lambda_handler(event, context):
 
 
 
-https://s3.us-west-2.amazonaws.com/ppd.dev.paricefile.bucket/Custom/Monthly/CDK/2023/10/ITEM.csv?AWSAccessKeyId=ASIAT7LJPKWNZPPQC77C&Signature=vOFSU4Z2r4cld9UDj6s%2FOl9QvR4%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEFsaCXVzLXdlc3QtMiJHMEUCIBEk0QVHIv4b6spV4EwjwzZbcurTlq8qH5OO7eZBhUU9AiEAoA%2FSn2Rv4PX8HeJdyi5zQUjrPKCyDGUkQ8xVItxnr9sqjwMIZBADGgwyNzM0ODg1MDAxMjMiDHxS8CF9SOhNBevpZyrsAnfM3b%2B%2BwQSyJNdQKYPAF%2BXbBUJ3XxJYN3bAhqLZd6n7OOcPASt15c9sPiBsJgQq9EQEEMmEuWj4SAOoF2ypx0EJTWXjl8J4SvXP6zipyaJW7yHG0LBHrXf%2BXvyO6Bp9T85h8yneXsgUDXnMGQyenyu7RxbJBTtZig5G4bIUvgf%2FoXOrkHAT74lZmlzTUoIPwUUPBT2sjxQwZyvP%2BwLp4na3TrjUjFq%2FOal8Xho3ztU0PACvx2ftvPtnfhTQq42euaNytgY0G46v%2FT4bSHfJtpaO1k6LxsvrckWtBB%2BvGuDFEffzO6HZfOwnendlIVGJwi%2Bb86ZCeXnQfd04QvQW1ElisORW5lL57cqEjSgmCXDjJkUeOqc7933t6xk62XbE84bC2pWmlmqe4FGC4wBAnqYos0bEYs02hPhu740mxXOYTKU3jv3LY3ERp4ljMIRpjUBnJXdK0GtOFspnqlDXWU3KOC0YczOoHNiAO88wm4%2F8qAY6nQErJLzQu%2BncwMtMDwapL4nM2o0mDx7wzH4Awqs1F7AKQDCrXf7UKG6FuZv3Fr8zh3O1%2BAHzZGgdk3UT%2Fv6QU2JKSsyZ5%2B2kuU4oj8danWK%2F9%2BYJsTKU96fZeebF3OhiTlqW8i24DTO5fg0CRwer0qNR%2Fjxt%2F7bTd4cm7BVoUe8Mcu1W2m31iVA%2FTrXR8oQH3Ulefj0SXkt8e1ke2IID&Expires=1696535980"
+import pymysql  
+import sys  
+import json  
+import config  
+import boto3  
+  
+  
+def get_values(ORDNO, CSTNO, CSTSFX, ITMID): 
+     #Db connections for rds  
+    REGION=config.data["REGION"]  
+    rds_host=config.data["rds_host"]  
+    username=config.data["username"]  
+    password=config.data["password"]  
+    db_name=config.data["db_name"]  
+    conn = pymysql.connect(rds_host, username, password, db_name, connect_timeout=5)  
+     
+    final = {}   
+    final.setdefault('result', [])   
+    with conn.cursor() as curr:   
+        query ="SELECT distinct DOPORDM0.ORDNO,DOPORDM0.CSTNO,DOPORDM0.CSTSFX,DOPORDM3.ITMID,DCSCIM.ITMDESC,DOPORDM3.ORDLN,DOPORDM3.CUSTLN,DOPORDM4.RELNO,DOPORDM4.SEQ,DOPORDM3.CSTSKU, DOPORDM3.STAT,DWMPQSH.FRTCRY as PDC_Carrier, DOPORDM0.CSTORD,date_format(DPMORDM0.ISSDTE,'%%m/%%d/%%Y') as ISSDTE,date_format(DPMORDM3.PROMDTE,'%%m/%%d/%%Y')as PROMDTE,DPMORDM3.POLNNBR,DOPORDM3.QTYBO,DOPORDM3.QTYFUTR,DOPORDM3.QTYALC,DOPORDM3.QTYPICKED,DOPORDM3.QTYSHP,DOPORDM3.QTYINV,DOPORDM3.UOM,DOPORDM3.QTYCNL,Case When substr(DOPORDM0.DISTCTR,1,1)='X' Then 'Y' When substr(DOPORDM0.DISTCTR,1,1)<>'X' and DOPORDM0.ORDTYP='TD' then 'Y' When substr(DCSCTMR.RECD,90,1) = 'Y' then 'Y' ELSE 'N' End AS DSP_ORDER,date_format(DOPORDM4.DTESHP,'%%m/%%d/%%Y')as DTESHP,DPMREQ.PONBR,CASE WHEN DOPORDM3.VNDID = ' ' THEN DCSCIM.VNDID ELSE DOPORDM3.VNDID END AS VNDID,CASE WHEN DOPORDM3.VNDID = ' ' THEN DCSCIM.VNDSFX ELSE DOPORDM3.VNDSFX END AS VNDSFX,DOPORDM4.INVOICE,DOPORDM3.QTYORD,DWMPQSH.PRONO as PDCTracking,Coalesce((Select count(Distinct(cmt)) from DOPORDM2 where DOPORDM2.ORDNO=DOPORDM0.ORDNO and DOPORDM2.CSTNO=DOPORDM0.CSTNO and DOPORDM2.ORDLN=DOPORDM3.ORDLN and DOPORDM2.CSTSFX=DOPORDM0.CSTSFX and DOPORDM2.RCDTYP='I'),0) as CMTCTR,Coalesce((Select count(Distinct(DPMORDM2A.Desc)) from DPMORDM2A where DPMORDM2A.PONBR=DPMREQ.PONBR and DPMORDM2A.POLNNBR=DPMREQ.POLNNBR),0) as PONoteCtr FROM (DOPORDM0 join DOPORDM3 on DOPORDM0.ORDNO=DOPORDM3.ORDNO and DOPORDM0.CSTNO=DOPORDM3.CSTNO and DOPORDM0.CSTSFX=DOPORDM3.CSTSFX) left join DOPORDM4 on DOPORDM4.ORDNO=DOPORDM3.ORDNO and DOPORDM4.ORDLN=DOPORDM3.ORDLN and DOPORDM4.CSTNO=DOPORDM3.CSTNO and  DOPORDM4.CSTSFX=DOPORDM3.CSTSFX left join DWMPQSH on DOPORDM4.DISTCTR=DWMPQSH.DISTCTR and DOPORDM4.CSTNO=DWMPQSH.CSTNO and DOPORDM4.CSTSFX=DWMPQSH.CSTSFX and DOPORDM4.BOXNO=DWMPQSH.BOXNO left join DPMREQ on DPMREQ.REQNBR=DOPORDM3.REQNBR and DPMREQ.ORGSYS='COPS' and DPMREQ.ORGNBR=DOPORDM0.ORDNO left join DCSCIM on DOPORDM3.ITMID=DCSCIM.ITMID left join DPMORDM0 on DPMREQ.PONBR=DPMORDM0.PONBR left join DPMORDM3 on DPMORDM0.PONBR=DPMORDM3.PONBR and DPMREQ.POLNNBR=DPMORDM3.POLNNBR and DOPORDM3.ITMID=DPMORDM3.ITMID left join DCSCTMR on DCSCTMR.TBLID=617 and DCSCTMR.SUFFIX=substr(DOPORDM3.ORDNO,1,2) Where DOPORDM0.ORDNO=%s and DOPORDM0.CSTNO=%s and  DOPORDM0.CSTSFX=%s and DOPORDM3.ITMID= %s"
+        curr.execute(query,(ORDNO,CSTNO,CSTSFX,ITMID))    
+        result =curr.fetchall() 
+        for row in range(len(result)):   
+            if result[row][0]==None:   
+                ORDNO =''   
+            else:   
+                ORDNO = str(result[row][0])   
+                   
+            if result[row][1]==None:   
+                CSTNO =''   
+            else:   
+                CSTNO = str(result[row][1])   
+               
+            if result[row][2]==None:   
+                CSTSFX =''   
+            else:   
+                CSTSFX = str(result[row][2])   
+               
+            if result[row][3]==None:   
+                ITMID =''   
+            else:   
+                ITMID = str(result[row][3])   
+               
+            if result[row][4]==None:   
+                ITMDESC =''   
+            else:   
+                ITMDESC = str(result[row][4])   
+            if result[row][5]==None or '':   
+                ORDLN = 0   
+            else:   
+                ORDLN = int(result[row][5])   
+            if result[row][6]==None or '':   
+                CUSTLN = 0   
+            else:   
+                CUSTLN = int(result[row][6])   
+            if result[row][7]==None or '':   
+                RELNO = 0   
+            else:   
+                RELNO = int(result[row][7])   
+            if result[row][8]==None or '':   
+                SEQ = 0   
+            else:   
+                SEQ = int(result[row][8])   
+            if result[row][9]==None:   
+                CSTSKU =''   
+            else:   
+                CSTSKU = str(result[row][9])   
+            if result[row][10]==None:   
+                STAT =''   
+            else:   
+                STAT = str(result[row][10])   
+            if result[row][11]==None:   
+                PDC_Carrier=''   
+            else:   
+                PDC_Carrier = str(result[row][11])   
+            if result[row][12]==None:   
+                CSTORD=''   
+            else:   
+                CSTORD = str(result[row][12])   
+            if result[row][13]==None or result[row][13]=='00/00/0000':   
+                ISSDTE =''   
+            else:   
+                ISSDTE = str(result[row][13])   
+            if result[row][14]==None or result[row][14]=='00/00/0000':   
+                PROMDTE =''   
+            else:   
+                PROMDTE = str(result[row][14])   
+            if result[row][15]==None:   
+                POLNNBR =''   
+            else:   
+                POLNNBR = str(result[row][15])   
+            if result[row][16]==None or '':   
+                QTYBO = 0   
+            else:   
+                QTYBO=int(result[row][16])   
+            if result[row][17]==None or '':   
+                QTYFUTR = 0   
+            else:   
+                QTYFUTR = int(result[row][17])   
+            if result[row][18]==None or '':   
+                QTYALC = 0   
+            else:   
+                QTYALC = int(result[row][18])   
+            if result[row][19]==None or '':   
+                QTYPICKED = 0   
+            else:   
+                QTYPICKED = int(result[row][19])   
+            if result[row][20]==None or '':   
+                QTYSHP = 0   
+            else:   
+                QTYSHP = int(result[row][20])   
+            if result[row][21]==None or '':   
+                QTYINV = 0   
+            else:   
+                QTYINV = int(result[row][21])   
+            if result[row][22]==None:   
+                UOM = 0   
+            else:   
+                UOM = result[row][22]   
+            if result[row][23]==None or '':   
+                QTYCNL = 0   
+            else:   
+                QTYCNL = int(result[row][23])  
+            if result[row][24]==None:   
+                DSP_ORDER = ''  
+            else:   
+                DSP_ORDER = str(result[row][24])  
+            if result[row][25]==None or '' or result[row][25]=='00/00/0000':   
+                DTESHP =''   
+            else:   
+                DTESHP = result[row][25]   
+            if result[row][26]==None:   
+                PONBR =''   
+            else:   
+                PONBR = str(result[row][26])   
+            if result[row][27]==None:   
+                VNDID =''   
+            else:   
+                VNDID = str(result[row][27])   
+            if result[row][28]==None:   
+                VNDSFX =''   
+            else:   
+                VNDSFX = str(result[row][28])   
+            if result[row][29]==None or '':   
+                INVOICE = 0   
+            else:   
+                INVOICE = int(result[row][29])   
+            if result[row][30]==None or '':   
+                QTYORD = 0   
+            else:   
+                QTYORD= int(result[row][30])   
+            if result[row][31]==None:   
+                PDCTracking =''   
+            else:   
+                PDCTracking = str(result[row][31])   
+            if result[row][32]==None or '':   
+                CMTCTR = 0   
+            else:   
+                CMTCTR =int(result[row][32])   
+            if result[row][33]==None or'':   
+                PONoteCtr = 0   
+            else:   
+                PONoteCtr =int(result[row][33])   
+   
+            y = {   
+                'ORDNO': ORDNO,   
+                'CSTNO': CSTNO,   
+                'CSTSFX': CSTSFX,   
+                'ITMID': ITMID,   
+                'ITMDESC': ITMDESC,   
+                'ORDLN': ORDLN,   
+                'CUSTLN': CUSTLN,   
+                'RELNO': RELNO,   
+                'SEQ': SEQ,   
+                'CSTSKU': CSTSKU,   
+                'STAT': STAT,   
+                'PDC_Carrier':PDC_Carrier,   
+                'CSTORD': CSTORD,   
+                'ISSDTE': ISSDTE,   
+                'PROMDTE': PROMDTE,   
+                'POLNNBR': POLNNBR,   
+                'QTYBO':QTYBO,   
+                'QTYFUTR':QTYFUTR,   
+                'QTYALC':QTYALC,   
+                'QTYPICKED':QTYPICKED,   
+                'QTYSHP':QTYSHP,   
+                'QTYINV':QTYINV,   
+                'UOM': UOM,   
+                'QTYCNL': QTYCNL,  
+                'DSP_ORDER':DSP_ORDER,  
+                'DTESHP': DTESHP,   
+                'PONBR' : PONBR,   
+                'VNDID':VNDID,   
+                'VNDSFX':VNDSFX,   
+                'INVOICE':INVOICE,   
+                'QTYORD':QTYORD,   
+                'PDCTracking':PDCTracking,   
+                'CMTCTR': CMTCTR,   
+                'PONoteCtr': PONoteCtr,   
+            }   
+            final['result'].append(y)     
+        curr.close()     
+    conn.close()    
+    return final['result']   
+       
+      
+def lambda_handler(event, context):   
+    ORDNO = event['queryStringParameters']['ORDNO']   
+    CSTNO = event['queryStringParameters']['CSTNO']   
+    CSTSFX = event['queryStringParameters']['CSTSFX']   
+    ITMID = event['queryStringParameters']['ITMID']   
+    result=get_values(ORDNO, CSTNO, CSTSFX, ITMID)   
+       
+       
+   
+    if result == 'ERROR':   
+        return {   
+            "statusCode": 500,   
+            "body": "Server Error",   
+       
+        }   
+    else:   
+        return {   
+            "statusCode": 200,   
+            "body": json.dumps(result),   
+        }   
+  
+{   
+    "ORDNO": "XSRN919",
+    "CSTNO":"B400",
+    "CSTSFX":" ",
+    "ITMID": "21-10F0"
+}
 
 
-[INFO]	2023-10-05T20:18:12.532Z	201ec249-0edf-4521-bb14-f7a59c0d3a46	{'resource': '/pricefiles/getfiles', 'path': '/pricefiles/getfiles', 'httpMethod': 'POST', 'headers': {'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Content-Type': 'application/json', 'Host': 'iiptjvxujl.execute-api.us-west-2.amazonaws.com', 'Postman-Token': '69284672-b439-48cd-9728-485d87786760', 'User-Agent': 'PostmanRuntime/7.26.8', 'X-Amzn-Trace-Id': 'Root=1-651f1a03-5951144573752cdd24d33767', 'x-api-key': 'QwIlV9pCsm1N0div5PuYjayI2AlxgvND1U8zfY8T', 'X-Forwarded-For': '160.69.1.132', 'X-Forwarded-Port': '443', 'X-Forwarded-Proto': 'https'}, 'multiValueHeaders': {'Accept': ['*/*'], 'Accept-Encoding': ['gzip, deflate, br'], 'Content-Type': ['application/json'], 'Host': ['iiptjvxujl.execute-api.us-west-2.amazonaws.com'], 'Postman-Token': ['69284672-b439-48cd-9728-485d87786760'], 'User-Agent': ['PostmanRuntime/7.26.8'], 'X-Amzn-Trace-Id': ['Root=1-651f1a03-5951144573752cdd24d33767'], 'x-api-key': ['QwIlV9pCsm1N0div5PuYjayI2AlxgvND1U8zfY8T'], 'X-Forwarded-For': ['160.69.1.132'], 'X-Forwarded-Port': ['443'], 'X-Forwarded-Proto': ['https']}, 'queryStringParameters': None, 'multiValueQueryStringParameters': None, 'pathParameters': None, 'stageVariables': None, 'requestContext': {'resourceId': 'liwp0p', 'resourcePath': '/pricefiles/getfiles', 'httpMethod': 'POST', 'extendedRequestId': 'MWEAnGN5PHcFcqw=', 'requestTime': '05/Oct/2023:20:18:11 +0000', 'path': '/Dev/pricefiles/getfiles', 'accountId': '273488500123', 'protocol': 'HTTP/1.1', 'stage': 'Dev', 'domainPrefix': 'iiptjvxujl', 'requestTimeEpoch': 1696537091632, 'requestId': '470dcaad-f243-4597-9c26-9af14e3471cf', 'identity': {'cognitoIdentityPoolId': None, 'cognitoIdentityId': None, 'apiKey': 'QwIlV9pCsm1N0div5PuYjayI2AlxgvND1U8zfY8T', 'principalOrgId': None, 'cognitoAuthenticationType': None, 'userArn': None, 'apiKeyId': 'crz1jxldma', 'userAgent': 'PostmanRuntime/7.26.8', 'accountId': None, 'caller': None, 'sourceIp': '160.69.1.132', 'accessKey': None, 'cognitoAuthenticationProvider': None, 'user': None}, 'domainName': 'iiptjvxujl.execute-api.us-west-2.amazonaws.com', 'apiId': 'iiptjvxujl'}, 'body': '{\n    "s3Bucket" : "ppd.dev.paricefile.bucket",\n    "Prefix" :"Custom/Monthly/CDK/"\n}', 'isBase64Encoded': False}
+
+http://ppdtest:10010/web/services/RetrieveOrderInfo
+
+
+{
+    "OutData": {
+        "OutDataS": [
+            {
+                "ORDNO": "XSRN919",
+                "CSTNO": "B400",
+                "CSTSFX": "",
+                "ITMID": "21-10F0",
+                "ITMDESC": "SYSTEM-SPACEMASTER 10 PNL 81-8 ADD EXPL",
+                "SALEIND": "Y",
+                "ORDLN": 1,
+                "CUSTLN": 1,
+                "RELNO": 1,
+                "SEQ": 0,
+                "CSTSKU": "",
+                "STAT": "6",
+                "PDC_CARRIER": "",
+                "CSTORD": "TEST PO A 10286AA",
+                "ISSDTE": "01/16/23",
+                "PROMDTE": "01/18/23",
+                "POLNNBR": 1,
+                "QTYBO": 0.0000,
+                "QTYFUTR": 0.0000,
+                "QTYALC": 0.0000,
+                "QTYPICKED": 0.0000,
+                "QTYSHP": 15.0000,
+                "QTYINV": 0.0000,
+                "UOM": "EA",
+                "QTYCNL": 0.0000,
+                "DSP_ORDER": "Y",
+                "DTESHP": "02/27/23",
+                "PONBR": "XS-XU72838",
+                "VNDID": "10286AA",
+                "VNDSFX": "",
+                "INVOICE": 0,
+                "QTYORD": 15.0000,
+                "PDCTRACKING": "",
+                "CMTCTR": 2,
+                "PONOTECTR": 3,
+                "ENDCSTNAM": ""
+            }
+        ]
+    },
+    "ErrorResponse": {
+        "IsSuccess": "true",
+        "ErrorMessages": []
+    }
+}
+
 
 
 
