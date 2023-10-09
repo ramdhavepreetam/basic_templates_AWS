@@ -199,6 +199,58 @@ In this code:
 
 Make sure to replace the placeholders `YOUR_SECRET_NAME` and `YOUR_AWS_REGION` with appropriate values for your setup. Ensure that the Lambda has the necessary IAM permissions and that the `boto3` and `requests` libraries are included in the deployment package.
 
+import http.client
+import json
+import boto3
+
+def get_secret():
+    # ... (no changes here, same as before)
+
+def get_values_from_api(ORDNO, CSTNO, CSTSFX, ITMID):
+    # API endpoint details
+    host = "ppdtest"
+    port = 10010
+    path = "/web/services/RetrieveOrderInfo"
+    
+    # Retrieve username and password from Secrets Manager
+    secrets = get_secret()
+    username = secrets['username']
+    password = secrets['password']
+    
+    # Set up basic authentication header
+    auth_token = f"{username}:{password}"
+    headers = {
+        "Authorization": f"Basic {auth_token.encode().decode('base64')}",
+        "Content-Type": "application/json"
+    }
+    
+    # API payload
+    payload = {
+        "ORDNO": ORDNO,
+        "CSTNO": CSTNO,
+        "CSTSFX": CSTSFX,
+        "ITMID": ITMID
+    }
+
+    # Making the API request using http.client
+    conn = http.client.HTTPConnection(host, port)
+    conn.request("POST", path, body=json.dumps(payload), headers=headers)
+
+    response = conn.getresponse()
+    data = response.read().decode('utf-8')
+    conn.close()
+
+    if response.status == 200:
+        response_data = json.loads(data)
+        if response_data.get("ErrorResponse") and response_data["ErrorResponse"].get("IsSuccess") == "true":
+            return response_data.get("OutData", {}).get("OutDataS", [])
+        else:
+            return "ERROR"
+    else:
+        raise Exception(f"API request failed with status {response.status} and response: {data}")
+
+def lambda_handler(event, context):
+    # ... (no changes here, same as before)
 
 
 
