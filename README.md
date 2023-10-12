@@ -135,4 +135,7 @@ fields @timestamp, vendor, avg(requestDuration)
 | stats avg(requestDuration) by vendor
 
 
+No aggregation function expression allowed: fields@timestamp,vendor,avg(requestDuration) ([73,119]) (Service: AWSLogs; Status Code: 400; Error Code: MalformedQueryException; Request ID: 24621266-8925-44c7-a30e-49e63788605c; Proxy: null)
+
+
 
