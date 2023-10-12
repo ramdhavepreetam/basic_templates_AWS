@@ -258,95 +258,31 @@ def lambda_handler(event, context):
 
         [ERROR]	2023-10-05T17:26:38.277Z	0affed40-2cab-49cf-9951-7c56e04459b7	Unexpected error: list_all_objects() missing 1 required positional argument: 'prefix'
 
+WITH PRICING_DATA AS ( select a."PRICEID", b."CSTNO", b."CSTSFX",         
+a."ITMID", a."EFFDATE", a."PDCFRZ", a."DSPFRZ", a."CHANNEL", a."CLIST",         
+a."RESALE", a."STDDLRNET", a."BESTCODE", a."QTYBREAK", a."QTYDISC",           
+a."QTYPRICE", a."QTYFNL", a."QTBRKEND", a."PROMO", a."PROMOPCT", a."SANBR",     
+a."PHASE", a."SALINE", a."BASEQTY", a."SABSTNET", a."SAEFFDATE", a."SAEXPDATE", 
+a."FNLNET", c."GLFINENT", d."CORFLG", d."CORPRC", d."CORGRP", d."CORCLS" from ( 
+select * from ppdglobal."DCPP0113U" union select * from               
+ppdglobal."DCPP0113C" union select * from ppdglobal."DCPP0113M" union   
+select * from ppdglobal."DCPP0113P" ) as a join ppdglobal."DCPP0115" as 
+b on a."PRICEID" = b."PRICEID" left join ppdglobal."DOPCMST0" as c ON     
+c."CSTNO" = b."CSTNO" and c."CSTSFX" = b."CSTSFX" left join                 
+ppdglobal."DCPP0111" as d ON a."ITMID" = d."ITMID" AND c."GLFINENT" =       
+d."GLFINENT" ) select * from PRICING_DATA y where y."CSTNO" = 'H600'    
+and  y."ITMID" = 'AC1001'                                            
+ORDER BY y."ITMID", Y."CHANNEL", Y."QTYBREAK"    
 
 
 
 
-import json
-import http.client
-import boto3
+SELECT dm."DEALER_CODE", dm."DBS" , d24.*  FROM PPDGLOBAL."DCPP0124" d24 join PPDGLOBAL."DCPP0115" DC
+ON d24."ITMID" = DC."ITMID" JOIN PPDGLOBAL."DEALER_MASTER" DM 
+ON DC."CSTNO" = DM."DEALER_CODE" WHERE DM."DBS" = 'DSI'![image](https://github.com/ramdhavepreetam/basic_templates_AWS/assets/5998997/7056f33a-2101-41ae-b29b-754ec9ad14ea)
 
-def get_secret():
-    secret_name = "YOUR_SECRET_NAME"
-    region_name = "YOUR_AWS_REGION"
-    
-    session = boto3.session.Session()
-    client = session.client(service_name='secretsmanager', region_name=region_name)
 
-    try:
-        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
-    except Exception as e:
-        raise e  # Handle this according to your logging or error handling preference
-
-    if 'SecretString' in get_secret_value_response:
-        secret = json.loads(get_secret_value_response['SecretString'])
-        return secret
-    else:
-        raise Exception("Failed to retrieve secret values.")
-
-def get_values_from_api(ORDNO, CSTNO, CSTSFX, ITMID):
-    # API endpoint details
-    host = "ppdtest"
-    port = 10010
-    path = "/web/services/RetrieveOrderInfo"
-    
-    # Retrieve username and password from Secrets Manager
-    secrets = get_secret()
-    username = secrets['username']
-    password = secrets['password']
-    
-    # Set up basic authentication header
-    auth_token = f"{username}:{password}"
-    headers = {
-        "Authorization": f"Basic {auth_token.encode().decode('base64')}",
-        "Content-Type": "application/json"
-    }
-    
-    # API payload
-    payload = {
-        "ORDNO": ORDNO,
-        "CSTNO": CSTNO,
-        "CSTSFX": CSTSFX,
-        "ITMID": ITMID
-    }
-
-    # Making the API request using http.client
-    conn = http.client.HTTPConnection(host, port)
-    conn.request("POST", path, body=json.dumps(payload), headers=headers)
-
-    response = conn.getresponse()
-    data = response.read().decode('utf-8')
-    conn.close()
-
-    if response.status == 200:
-        response_data = json.loads(data)
-        if response_data.get("ErrorResponse") and response_data["ErrorResponse"].get("IsSuccess") == "true":
-            return response_data.get("OutData", {}).get("OutDataS", [])
-        else:
-            return "ERROR"
-    else:
-        raise Exception(f"API request failed with status {response.status} and response: {data}")
-
-def lambda_handler(event, context):
-    try:
-        body = json.loads(event['body'])  # Parsing the body to extract parameters
-        ORDNO = body['ORDNO']
-        CSTNO = body['CSTNO']
-        CSTSFX = body['CSTSFX']
-        ITMID = body['ITMID']
-
-        result = get_values_from_api(ORDNO, CSTNO, CSTSFX, ITMID)
-        
-        if result == 'ERROR':
-            return {
-                "statusCode": 500,
-                "body": "Server Error"
-            }
-        else:
-            return {
-                "statusCode": 200,
-                "body": json.dumps(result)
-            }
+ 
     except Exception as e:
         return {
             "statusCode": 500,
