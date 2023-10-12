@@ -258,34 +258,16 @@ def lambda_handler(event, context):
 
         [ERROR]	2023-10-05T17:26:38.277Z	0affed40-2cab-49cf-9951-7c56e04459b7	Unexpected error: list_all_objects() missing 1 required positional argument: 'prefix'
 
-WITH PRICING_DATA AS ( select a."PRICEID", b."CSTNO", b."CSTSFX",         
-a."ITMID", a."EFFDATE", a."PDCFRZ", a."DSPFRZ", a."CHANNEL", a."CLIST",         
-a."RESALE", a."STDDLRNET", a."BESTCODE", a."QTYBREAK", a."QTYDISC",           
-a."QTYPRICE", a."QTYFNL", a."QTBRKEND", a."PROMO", a."PROMOPCT", a."SANBR",     
-a."PHASE", a."SALINE", a."BASEQTY", a."SABSTNET", a."SAEFFDATE", a."SAEXPDATE", 
-a."FNLNET", c."GLFINENT", d."CORFLG", d."CORPRC", d."CORGRP", d."CORCLS" from ( 
-select * from ppdglobal."DCPP0113U" union select * from               
-ppdglobal."DCPP0113C" union select * from ppdglobal."DCPP0113M" union   
-select * from ppdglobal."DCPP0113P" ) as a join ppdglobal."DCPP0115" as 
-b on a."PRICEID" = b."PRICEID" left join ppdglobal."DOPCMST0" as c ON     
-c."CSTNO" = b."CSTNO" and c."CSTSFX" = b."CSTSFX" left join                 
-ppdglobal."DCPP0111" as d ON a."ITMID" = d."ITMID" AND c."GLFINENT" =       
-d."GLFINENT" ) select * from PRICING_DATA y where y."CSTNO" = 'H600'    
-and  y."ITMID" = 'AC1001'                                            
-ORDER BY y."ITMID", Y."CHANNEL", Y."QTYBREAK"    
+ppdglobal."DCPP0113U"
+ppdglobal."DCPP0113C"
+ppdglobal."DCPP0113M"
+ppdglobal."DCPP0113P"
+ppdglobal."DCPP0115"
+ppdglobal."DOPCMST0"
+ppdglobal."DCPP0111"
 
+PPDGLOBAL."DCPP0124" with alias d24
+PPDGLOBAL."DCPP0115" with alias DC
+PPDGLOBAL."DEALER_MASTER" with alias DM
 
-
-
-SELECT dm."DEALER_CODE", dm."DBS" , d24.*  FROM PPDGLOBAL."DCPP0124" d24 join PPDGLOBAL."DCPP0115" DC
-ON d24."ITMID" = DC."ITMID" JOIN PPDGLOBAL."DEALER_MASTER" DM 
-ON DC."CSTNO" = DM."DEALER_CODE" WHERE DM."DBS" = 'DSI'![image](https://github.com/ramdhavepreetam/basic_templates_AWS/assets/5998997/7056f33a-2101-41ae-b29b-754ec9ad14ea)
-
-
- 
-    except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": f"Server Error: {str(e)}"
-        }
 
