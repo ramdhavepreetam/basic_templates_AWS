@@ -112,3 +112,98 @@ No aggregation function expression allowed: fields@timestamp,vendor,avg(requestD
 
 
 
+
+-----------------------------------------------------------------------
+
+
+
+import json
+import http.client
+import boto3
+
+def get_secret():
+    secret_name = "ppd-dev-order-salseforce-api"
+    region_name = "us-west-2"
+
+    session = boto3.session.Session()
+    client = session.client(service_name='secretsmanager', region_name=region_name)
+
+    try:
+        get_secret_value_response = client.get_secret_value(SecretId=secret_name)
+    except Exception as e:
+        raise e  # Handle this according to your logging or error handling preference
+
+    if 'SecretString' in get_secret_value_response:
+        secret = json.loads(get_secret_value_response['SecretString'])
+        return secret
+    else:
+        raise Exception("Failed to retrieve secret values.")
+
+def get_values_from_api(ORDNO, CSTNO, CSTSFX, ITMID):
+    # API endpoint details
+    host = "ppdtest.na.paccar.com"
+    port = 10010
+    path = f"/web/services/RetrieveOrderInfo?ORDNO={ORDNO}&CSTNO={CSTNO}&CSTSFX={CSTSFX}&ITMID={ITMID}"
+
+    # Retrieve username and password from Secrets Manager
+    secrets = get_secret()
+    Authorization = secrets['Authorization']
+
+    # Making the API request using http.client
+    conn = http.client.HTTPConnection(host, port)
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': secrets['Authorization']
+    }
+
+    conn.request("GET", path, headers=headers)
+
+    response = conn.getresponse()
+    data = response.read().decode('utf-8')
+    conn.close()
+
+    if response.status == 200:
+        response_data = json.loads(data)
+        if response_data.get("ErrorResponse") and response_data["ErrorResponse"].get("IsSuccess") == "true":
+            return response_data.get("OutData", {}).get("OutDataS", [])
+        else:
+            return "ERROR"
+    else:
+        raise Exception(f"API request failed with status {response.status} and response: {data}")
+
+def lambda_handler(event, context):
+    try:
+        # Extract query parameters from the event object
+        ORDNO = event.get('queryStringParameters', {}).get('ORDNO')
+        CSTNO = event.get('queryStringParameters', {}).get('CSTNO')
+        CSTSFX = event.get('queryStringParameters', {}).get('CSTSFX')
+        ITMID = event.get('queryStringParameters', {}).get('ITMID')
+
+        if not ORDNO or not CSTNO or not CSTSFX or not ITMID:
+            return {
+                "statusCode": 400,
+                "body": "Missing query parameters"
+            }
+
+        result = get_values_from_api(ORDNO, CSTNO, CSTSFX, ITMID)
+
+        if result == 'ERROR':
+            return {
+                "statusCode": 500,
+                "body": "Server Error"
+            }
+        else:
+            return {
+                "statusCode": 200,
+                "body": json.dumps(result)
+            }
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "body": f"Server Error: {str(e)}"
+        }
+
+
+
+
