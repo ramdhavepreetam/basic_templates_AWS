@@ -29,25 +29,28 @@
 
 
 
+-- Create temporary table from union of multiple tables
+CREATE TEMP TABLE temp_combined_data AS
+    SELECT * FROM ppdglobal."DCPP0113U"
+    UNION ALL
+    SELECT * FROM ppdglobal."DCPP0113C"
+    UNION ALL
+    SELECT * FROM ppdglobal."DCPP0113M"
+    UNION ALL
+    SELECT * FROM ppdglobal."DCPP0113P";
 
-	Explain	WITH PRICING_DATA AS (
-                SELECT  a."PRICEID", b."CSTNO", b."CSTSFX", a."ITMID", a."EFFDATE", a."PDCFRZ", a."DSPFRZ",
-                    a."CHANNEL", a."CLIST", a."RESALE", a."STDDLRNET", a."BESTCODE", a."QTYBREAK", a."QTYDISC",
-                    a."QTYPRICE", a."QTYFNL", a."QTBRKEND", a."PROMO", a."PROMOPCT", a."SANBR", a."PHASE",
-                    a."SALINE", a."BASEQTY", a."SABSTNET", a."SAEFFDATE", a."SAEXPDATE", a."FNLNET",
-                    c."GLFINENT", d."CORFLG", d."CORPRC", d."CORGRP", d."CORCLS",e."GRPCDE"
-                FROM (
-                    SELECT * FROM ppdglobal."DCPP0113U"
-                    UNION ALL
-                    SELECT * FROM ppdglobal."DCPP0113C"
-                    UNION ALL
-                    SELECT * FROM ppdglobal."DCPP0113M"
-                    UNION ALL
-                    SELECT * FROM ppdglobal."DCPP0113P"
-                ) AS a
-                JOIN ppdglobal."DCPP0115" AS b ON a."PRICEID" = b."PRICEID"
-                LEFT JOIN ppdglobal."DOPCMST0" AS c ON c."CSTNO" = b."CSTNO" AND c."CSTSFX" = b."CSTSFX"
-                LEFT JOIN ppdglobal."DCPP0111" AS d ON a."ITMID" = d."ITMID" AND c."GLFINENT" = d."GLFINENT"
-                LEFT JOIN ppdglobal."DCPP0124" AS e ON a."ITMID" = e."ITMID"
-            )
-            SELECT * FROM PRICING_DATA WHERE "CSTNO" = 'A300' 
+-- Create indexes on the temporary table for columns used in joins and filters
+CREATE INDEX idx_temp_combined_data_priceid ON temp_combined_data ("PRICEID");
+CREATE INDEX idx_temp_combined_data_itmid ON temp_combined_data ("ITMID");
+
+-- Main query using the temporary table
+SELECT a."PRICEID", b."CSTNO", b."CSTSFX", a."ITMID", -- (list other necessary columns here)
+FROM temp_combined_data AS a
+JOIN ppdglobal."DCPP0115" AS b ON a."PRICEID" = b."PRICEID" AND b."CSTNO" = 'A300'
+LEFT JOIN ppdglobal."DOPCMST0" AS c ON c."CSTNO" = b."CSTNO" AND c."CSTSFX" = b."CSTSFX"
+LEFT JOIN ppdglobal."DCPP0111" AS d ON a."ITMID" = d."ITMID" AND c."GLFINENT" = d."GLFINENT"
+LEFT JOIN ppdglobal."DCPP0124" AS e ON a."ITMID" = e."ITMID";
+
+-- Optionally, drop the temporary table at the end of the session
+-- DROP TABLE temp_combined_data;
+
